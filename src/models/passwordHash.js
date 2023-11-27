@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { HttpException } from '../utils';
 
 class PasswordHash {

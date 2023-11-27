@@ -3,3 +3,4 @@ export {default as PasswordHash} from './passwordHash';
 export {default as Filter} from './filter';
 export * from './schemas';
 export * from './updateMaps';
+export {default as EmailMessage} from './emailMessage';

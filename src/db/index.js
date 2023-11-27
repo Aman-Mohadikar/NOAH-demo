@@ -1,33 +1,43 @@
 /* eslint-disable class-methods-use-this */
-import { Pool } from 'pg';
-import  config  from '../config';
-
-const pool = new Pool({
-  user: config.db.credentials.user,
-  password: config.db.credentials.password,
-  host: config.db.host,
-  database: config.db.name,
-  port: config.db.port,
-});
+import mongoose from 'mongoose';
+import config from '../config';
+import { userModel } from "../schemas"
 
 class Database {
+  constructor() {
+    mongoose.connect(config.mongoURI, {
+      useNewUrlParser: true, // Add other options as needed
+      useUnifiedTopology: true,
+    });
+    this.db = mongoose.connection;
+
+    this.db.on('error', console.error.bind(console, 'MongoDB connection error:'));
+    this.db.once('open', () => {
+      console.log('MongoDB connected successfully');
+    });
+  }
+
   async testConnection() {
-    await pool.query('SELECT 1=1');
-    return 'Db Pool Connected';
+    // Since MongoDB is schema-less, you can use any valid query here.
+    // For testing the connection, a simple query can be used.
+    // Make sure you have the correct model defined for the collections you are querying.
+    const result = await userModel.findOne({ exampleField: 'exampleValue' });
+    return 'MongoDB Connected';
   }
 
   async withTransaction(callback) {
-    const client = await pool.connect();
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     let res;
     try {
-      await client.query('BEGIN');
-      res = await callback(client);
-      await client.query('COMMIT');
+      res = await callback(session);
+      await session.commitTransaction();
     } catch (e) {
-      await client.query('ROLLBACK');
+      await session.abortTransaction();
       throw e;
     } finally {
-      client.release();
+      session.endSession();
     }
     return res;
   }

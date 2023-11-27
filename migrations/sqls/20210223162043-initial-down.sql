@@ -1,1 +1,0 @@
-DROP FUNCTION IF EXISTS update_updated_on_column();

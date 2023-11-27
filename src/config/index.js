@@ -3,38 +3,39 @@ import convict from 'convict';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import { isValidString } from "../utils";
+dotenv.config();
+// try {
+//   if (fs.existsSync('.env')) {
+//     console.log('Loading configuration from .env');
+//   } else {
+//     console.error('.env file do not exist ');
+//     process.exit(1);
+//   }
+//   dotenv.config();
+//   const jwtPrivateKey = process.env.JWT_PRIVATE_KEY;
+//   const jwtPublicKey = process.env.JWT_PUBLIC_KEY;
+//   if (!isValidString(jwtPublicKey) || !isValidString(jwtPrivateKey)) {
+//     console.log('Public key and Private key are required for Signing JWT');
+//     process.exit(1)
+//   }
+//   if (!fs.existsSync(jwtPublicKey)) {
+//     console.log('Public key at', jwtPublicKey, 'is not accessable!');
+//     process.exit(1);
+//   }
+//   if (!fs.existsSync(jwtPrivateKey)) {
+//     console.log('Private key at', jwtPrivateKey, 'is not accessable!');
+//     process.exit(1);
+//   }
+// } catch (err) {
+//   console.error("error while loading .env file", err.message);
+//   process.exit(1);
+// }
 
-try {
-  if (fs.existsSync('.env')) {
-    console.log('Loading configuration from .env');
-  } else {
-    console.error('.env file do not exist ');
-    process.exit(1);
-  }
-  dotenv.config();
-  const jwtPrivateKey = process.env.JWT_PRIVATE_KEY;
-  const jwtPublicKey = process.env.JWT_PUBLIC_KEY;
-  if (!isValidString(jwtPublicKey) || !isValidString(jwtPrivateKey)) {
-    console.log('Public key and Private key are required for Signing JWT');
-    process.exit(1)
-  }
-  if (!fs.existsSync(jwtPublicKey)) {
-    console.log('Public key at', jwtPublicKey, 'is not accessable!');
-    process.exit(1);
-  }
-  if (!fs.existsSync(jwtPrivateKey)) {
-    console.log('Private key at', jwtPrivateKey, 'is not accessable!');
-    process.exit(1);
-  }
-} catch (err) {
-  console.error("error while loading .env file", err.message);
-  process.exit(1);
-}
-
-const privateKey = fs.readFileSync(`${process.env.JWT_PRIVATE_KEY}`);
-const publicKey = fs.readFileSync(`${process.env.JWT_PUBLIC_KEY}`);
+const privateKey = fs.readFileSync(`${process.env.PRIVATE_KEY}`);
+const publicKey = fs.readFileSync(`${process.env.PUBLIC_KEY}`);
 
 const configLoader = convict({
+  mongoURI: 'mongodb://localhost:27017',
   env: {
     format: ['prod', 'dev', 'stage'],
     default: 'dev',
@@ -51,35 +52,6 @@ const configLoader = convict({
     default: 'development',
     env: 'FEATURE_LEVEL',
   },
-  db: {
-    credentials: {
-      user: {
-        format: String,
-        default: '',
-        env: 'DB_USER',
-      },
-      password: {
-        format: String,
-        default: '',
-        env: 'DB_PASSWORD',
-      },
-    },
-    host: {
-      format: String,
-      default: '',
-      env: 'DB_HOST',
-    },
-    name: {
-      format: String,
-      default: '',
-      env: 'DB_NAME',
-    },
-    port: {
-      format: 'port',
-      default: 5432,
-      env: 'DB_PORT',
-    },
-  },
   authTokens: {
     privateKey: {
       format: '*',
@@ -95,7 +67,7 @@ const configLoader = convict({
     },
     algorithm: {
       format: String,
-      default: 'ES512',
+      default: 'RS256',
     },
     audience: {
       web: {
@@ -116,6 +88,40 @@ const configLoader = convict({
     format: String,
     default: '',
     env: 'ENCRYPTION_KEY',
+  },
+  sendgrid: {
+    apiKey: {
+      format: String,
+      default: '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',
+      env: 'SENDGRID_API_KEY',
+    },
+    from: {
+      format: String,
+      default: 'aman@memorres.com',
+      env: 'SENDGRID_FROM',
+    }
+  },
+  systemUrls: {
+    resetPassword: {
+      format: String,
+      default: '',
+      env: 'RESET_PASSWORD_URL',
+    },
+    adminPortal: {
+      format: String,
+      default: '',
+      env: 'ADMIN_PORTAL_URL',
+    },
+    appUrl: {
+      format: String,
+      default: '',
+      env: 'APP_URL',
+    },
+    apiUrl: {
+      format: String,
+      default: 'http://localhost:8080/api/admins',
+      env: 'API_URL'
+    }
   },
 });
 

@@ -39,6 +39,10 @@ export const requiredStringValidator = (messageKey, key) => (
   Joi.string().required().messages(joiStringError(messageKey, key))
 );
 
+export const passwordValidator = (messageKey, key) => (
+  Joi.string().min(8).max(15).pattern(/^(?=.*[!@#$%^&*])/).required().messages(joiStringError(messageKey, key))
+);
+
 export const nullableStringValidator = (messageKey, key) => (
   Joi.string().allow(null).messages(joiStringError(messageKey, key))
 );
@@ -77,13 +81,30 @@ export const validateEndDate = (startDateKey) => (value, helpers) => {
   return value;
 };
 
-export const emailValidator = () => (
-  Joi.string().lowercase().email()
+// export const emailValidator = () => (
+//   Joi.string().lowercase().email()
+// );
+
+// export const requiredEmailValidator = (messageKey, key) => (
+//   emailValidator().required().messages(joiEmailError(messageKey, key))
+// );
+export const emailValidator = (messageKey, key) => (
+  Joi.string().lowercase().email({
+    minDomainSegments: 2,
+    tlds: { allow: false },
+  }).custom((value, helpers) => {
+    if (!value.endsWith('@memorres.com')) {
+      return helpers.error('any.invalid', { message: joiEmailError(messageKey, key) });
+    }
+    return value;
+  })
 );
 
 export const requiredEmailValidator = (messageKey, key) => (
-  emailValidator().required().messages(joiEmailError(messageKey, key))
+  emailValidator(messageKey, key).required().messages(joiEmailError(messageKey, key))
 );
+
+
 
 export const nullableEmailValidator = (messageKey, key) => (
   emailValidator().allow(null).messages(joiEmailError(messageKey, key))
@@ -138,4 +159,16 @@ export const nullableRegexValidator = (pattern, messageKey, key) => (
 export const regexValidator = (pattern, messageKey, key) => (
   Joi.string().regex(pattern)
     .messages(joiStringError(messageKey, key))
+);
+
+export const requiredObjectValidator = (messageKey, key) => (
+  Joi.object().required().messages(joiStringError(messageKey, key))
+)
+
+export const objectValidator = (messageKey, key) => (
+  Joi.object().messages(joiStringError(messageKey, key))
+)
+
+export const phoneNumberValidator = (messageKey, key) => (
+  Joi.number().integer().min(1000000000).max(9999999999).required().messages(joiNumberError(messageKey, key))
 );

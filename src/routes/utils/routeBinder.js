@@ -40,6 +40,8 @@ export const publicPut = (level, path, callback, middlewares) => {
   initPublicRoute(level, path, HttpMethod.put, callback, middlewares);
 };
 
+
+
 /**
  * Map the PUBLIC UNAUTHENTICATED route for HTTP DELETE requests
  *
@@ -89,6 +91,7 @@ export const put = (level, right, path, callback, middlewares) => {
 export const patch = (level, right, path, callback, middlewares) => {
   initRouteWith(level, right, path, HttpMethod.patch, callback, middlewares);
 };
+
 
 /**
  * Map the route for HTTP DELETE requests,
@@ -162,8 +165,8 @@ const initRouteWith = (level, right, path, method, callback, middlewares = []) =
         const data = await callback(req, res, next);
         if (data) {
           const updatedToken = SecurityService.updateToken(
-            req.ip, currentUser.email,
-            currentUser.tokenAud, currentUser.tokenType,
+            req.ip, currentUser.id,
+            currentUser.tokenAud, !!(currentUser.hasTemporaryPassowrd),
           );
           res.setHeader('Authorization', `Bearer ${updatedToken}`);
           return res.json(data).status(200);

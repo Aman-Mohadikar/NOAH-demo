@@ -1,3 +1,5 @@
+import Container from 'typedi';
+import { UserService } from '../services';
 import {
   routes, featureLevel, get, publicGet,
 } from './utils';
@@ -16,4 +18,13 @@ export default () => {
     Right.general.PING,
     routes.ping,
     async () => messageResponse('ok'));
+  
+  get(featureLevel.production,
+    Right.user.ACCOUNT_PING,
+    routes.user.ACCOUNT_PING,
+    async(req) => {
+      const service = Container.get(UserService);
+      return service.userAccountActivity({...req.currentUser});
+    }
+    )
 };

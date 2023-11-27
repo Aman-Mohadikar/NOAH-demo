@@ -2,188 +2,155 @@ import { Container } from 'typedi';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
 import config from '../config';
+import dotenv from 'dotenv';
+import bcrypt from "bcryptjs";
 import {
-  HttpException, encrypt, decrypt,
+  HttpException, encrypt,
   formatErrorResponse, STATUS,
 } from '../utils';
-import {
-  Authentication, Right, TokenValidationResult, Role,
-} from '../auth';
 import UserService from './userService';
-
+import { userModel, userLoginDetailsModel } from '../schemas';
+dotenv.config();
 
 class SecurityService {
-    static TOKEN_EXPIRATION_MINUTES = 1;
+  static TOKEN_EXPIRATION_MINUTES = 1;
 
-    static SAME_IP_TOKEN_EXPIRATION_MINUTES = 60;
+  static SAME_IP_TOKEN_EXPIRATION_MINUTES = 60;
 
-    static MAX_LOGIN_ATTEMPTS = 3;
+  static MAX_LOGIN_ATTEMPTS = 3;
 
-    static ACCOUNT_BLOCK_HOURS = 1;
+  static ACCOUNT_BLOCK_HOURS = 1;
 
-    constructor() {
-      this.txs = Container.get('DbTransactions');
-      this.userService = Container.get(UserService);
+  static EMAIL_TOKEN_VALIDITY_SECS = 60 * 60 * 1;
+
+  static OTP_TOKEN_VALIDITY_SECS = (0.5 * 60 * 60);
+
+  static INVITATION_VALIDITY_SECS = 60 * 60 * 1;
+
+  constructor() {
+    this.txs = Container.get('DbTransactions');
+    this.userService = Container.get(UserService);
+  }
+
+
+
+  async login(userMetaData, email, password) {
+    const { ipAddress } = userMetaData;
+    const messageKey = 'login';
+    const invalidLoginErr = new HttpException.Forbidden(formatErrorResponse(messageKey, 'invalidCredentials'));
+
+    const user = await userModel.findOne({ email: email });
+    let userLoginDetails = await userLoginDetailsModel.findOne({ userId: user?._id });
+
+    if (SecurityService.accountBlocked(userLoginDetails)) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'accountBlocked'));
+
+    if (!user || user.status !== 'ACTIVE' || !bcrypt.compareSync(password, user.password)) {
+      if (userLoginDetails) {
+        userLoginDetails.last_wrong_login_attempt = new Date();
+        userLoginDetails.wrong_login_count += 1;
+        await userLoginDetails.save();
+      }
+      throw invalidLoginErr;
     }
 
-    async updateUserWrongLoginCount(user) {
-      let wrongLoginCount = (user.wrongLoginCount || 0) + 1;
-      if (wrongLoginCount > SecurityService.MAX_LOGIN_ATTEMPTS) wrongLoginCount = 1;
-      await this.userService.updateUserWrongLoginCount(wrongLoginCount, user.id);
-    }
-
-    async postLoginActions(client, userId) {
-      await this.userService.markUserLogin(client, userId);
-    }
-
-    async login(ipAddress, email, password) {
-      return await this.txs.withTransaction(async (client) => {
-        const messageKey = 'login';
-        const invalidLoginErr = new HttpException.Forbidden(formatErrorResponse(messageKey, 'invalidCredentials'));
-        const user = await this.userService.findUserByEmail(client, email);
-        if (!user || !user.passwordHash) {
-          throw invalidLoginErr;
-        }
-
-        if (SecurityService.accountBlocked(user)) {
-          throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'accountBlocked'));
-        }
-
-        const validPassword = await user.passwordHash.check(password);
-
-        if (validPassword && await this.canLogin(user)) {
-          const roleIds = user.roles.map((role) => role.getId());
-          const type = Math.max(...roleIds);
-          const token = SecurityService.createToken(ipAddress,
-            user.email, config.authTokens.audience.app,
-            type, !(user.lastLogin));
-          await this.postLoginActions(client, user.id);
-          return { token };
-        }
-        this.updateUserWrongLoginCount(user);
-        throw invalidLoginErr;
+    if (userLoginDetails) {
+      userLoginDetails.last_wrong_login_attempt = null;
+      userLoginDetails.wrong_login_count = 0;
+      userLoginDetails.last_login = new Date();
+      userLoginDetails.last_login_ip = ipAddress;
+      await userLoginDetails.save();
+    } else {
+      userLoginDetails = new userLoginDetailsModel({
+        userId: user._id,
+        last_login: new Date(),
+        last_login_ip: ipAddress,
+        wrong_login_count: 0
       });
+      await userLoginDetails.save();
     }
 
-    /** Used to signup only mobile app users */
-    async signUp(ipAddress, signUpDto) {
-      return await this.txs.withTransaction(async (client) => {
-        const user = await this.userService.createUser(client,
-          { ...signUpDto, role: Role.roleValues.USER });
-        const token = SecurityService.createToken(ipAddress, user.email,
-          config.authTokens.audience.app, !(user.lastLogin));
-        await this.userService.markUserLogin(client, user.id);
-        return { token };
-      });
+    if (await this.canLogin(user)) {
+      const token = await SecurityService.createToken(ipAddress, user.id, config.authTokens.audience.app);
+      return { token };
+    }
+    throw invalidLoginErr;
+  }
+
+
+  static async createToken(ipAddress, identifier, aud) {
+    const payload = {
+      exp: SecurityService.anyIpAddressExpiryTimestamp(),
+      iat: SecurityService.currentTimestamp(),
+      nbf: SecurityService.currentTimestamp(),
+      iss: config.authTokens.issuer,
+      sub: identifier ? encrypt(identifier.toString()) : null,
+      aud: config.authTokens.audience.web,
+      version: config.authTokens.version,
+      exp2: {
+        ip: ipAddress,
+        time: SecurityService.sameIpAddressExpiryTimestamp(),
+      },
+    };
+    if (aud && aud === config.authTokens.audience.app) {
+      payload.aud = config.authTokens.audience.app;
+      delete payload.exp;
+      delete payload.exp2;
     }
 
+    return jwt.sign(payload, config.authTokens.privateKey,
+      { algorithm: config.authTokens.algorithm }
+    );
+  }
 
-    static accountBlocked(user) {
-      let blocked = false;
-      if ((user.wrongLoginCount >= SecurityService.MAX_LOGIN_ATTEMPTS)
-      && user.lastWrongLoginAttempt) {
-        const bolckedTill = user.lastWrongLoginAttempt.clone().add(SecurityService.ACCOUNT_BLOCK_HOURS, 'hour');
-        blocked = bolckedTill.isAfter();
-      }
-      return blocked;
+
+  async canLogin(user) {
+    const messageKey = 'user';
+    if (user.status !== STATUS.ACTIVE) {
+      throw new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser'));
+    }
+    return true;
+  }
+
+
+  static accountBlocked(userLoginDetails) {
+    let blocked = false;
+
+    if (
+      userLoginDetails &&
+      userLoginDetails.wrong_login_count >= SecurityService.MAX_LOGIN_ATTEMPTS &&
+      userLoginDetails.last_wrong_login_attempt
+    ) {
+      const blockedTill = moment(userLoginDetails.last_wrong_login_attempt)
+        .add(SecurityService.ACCOUNT_BLOCK_HOURS, 'hour');
+
+      const currentTime = moment();
+
+      blocked = currentTime.isBefore(blockedTill) || currentTime.isSame(blockedTill);
     }
 
-    async canLogin(user) {
-      const messageKey = 'user';
-      if (user.status !== STATUS.ACTIVE) {
-        throw new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser'));
-      }
+    return blocked;
+  }
 
-      return Authentication.hasRight(user, Right.general.LOGIN);
-    }
+  static currentTimestamp() {
+    return moment.utc().unix();
+  }
 
-    static updateToken(ipAddress, email, aud) {
-      return SecurityService.createToken(ipAddress, email, aud);
-    }
+  static anyIpAddressExpiryTimestamp() {
+    return moment()
+      .add(SecurityService.TOKEN_EXPIRATION_MINUTES, 'minute')
+      .unix();
+  }
 
-    static createToken(ipAddress, email, aud, firstLogin) {
-      const payload = {
-        exp: SecurityService.anyIpAddressExpiryTimestamp(),
-        iat: SecurityService.currentTimestamp(),
-        nbf: SecurityService.currentTimestamp(),
-        iss: config.authTokens.issuer,
-        sub: encrypt(email),
-        aud: config.authTokens.audience.web,
-        version: config.authTokens.version,
-        exp2: {
-          ip: ipAddress,
-          time: SecurityService.sameIpAddressExpiryTimestamp(),
-        },
-        firstLogin: firstLogin || undefined,
-      };
-      if (aud && aud === config.authTokens.audience.app) {
-        payload.aud = config.authTokens.audience.app;
-        delete payload.exp;
-        delete payload.exp2;
-      }
+  static sameIpAddressExpiryTimestamp() {
+    return moment()
+      .add(SecurityService.SAME_IP_TOKEN_EXPIRATION_MINUTES, 'minute')
+      .unix();
+  }
 
-      return jwt.sign(payload, config.authTokens.privateKey,
-        { algorithm: config.authTokens.algorithm });
-    }
 
-    static currentTimestamp() {
-      return moment.utc().unix();
-    }
-
-    static anyIpAddressExpiryTimestamp() {
-      return moment()
-        .add(SecurityService.TOKEN_EXPIRATION_MINUTES, 'minute')
-        .unix();
-    }
-
-    static sameIpAddressExpiryTimestamp() {
-      return moment()
-        .add(SecurityService.SAME_IP_TOKEN_EXPIRATION_MINUTES, 'minute')
-        .unix();
-    }
-
-    async validateToken(ip, payload) {
-      if ((payload.aud !== config.authTokens.audience.app)
-           && SecurityService.isExpired(ip, payload, moment())) {
-        return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.EXPIRED);
-      } if (SecurityService.isOldVersion(payload)) {
-        return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.OLD_VERSION);
-      }
-
-      try {
-        const email = decrypt(payload.sub);
-        const user = await this.txs.withTransaction(async (client) => (
-          this.userService.findUserByEmail(client, email)
-        ));
-
-        if (!user || (user.status !== STATUS.ACTIVE)) {
-          return new TokenValidationResult(
-            TokenValidationResult.tokenValidationStatus.INACTIVE_USER,
-          );
-        }
-
-        return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.VALID, user);
-      } catch (e) {
-        return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.INVALID_USER);
-      }
-    }
-
-    static isExpired(ip, payload, currentTime) {
-      return (!SecurityService.isValidForGeneralExpiration(currentTime, payload)
-      && !SecurityService.isValidForSameIpExpiration(currentTime, ip, payload));
-    }
-
-    static isValidForGeneralExpiration(currentTime, payload) {
-      return moment.unix(payload.exp).isAfter(currentTime);
-    }
-
-    static isValidForSameIpExpiration(currentTime, ip, payload) {
-      return (ip === payload.exp2.ip) && (moment.unix(payload.exp2.time).isAfter(currentTime));
-    }
-
-    static isOldVersion(payload) {
-      return config.authTokens.version !== payload.version;
-    }
+  static isOldVersion(payload) {
+    return config.authTokens.version !== payload.version;
+  }
 }
 
 

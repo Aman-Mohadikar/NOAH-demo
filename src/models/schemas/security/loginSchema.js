@@ -1,9 +1,9 @@
 import Joi from 'joi';
 import config from '../../../config';
-import { requiredStringValidator, nullableEnumValidator } from '../../../utils';
+import { requiredStringValidator, nullableEnumValidator, requiredEmailValidator } from '../../../utils';
 
 export default Joi.object(((messageKey) => ({
-  email: requiredStringValidator(messageKey, 'email'),
+  email: requiredEmailValidator(messageKey, 'email'),
   password: requiredStringValidator(messageKey, 'password'),
   aud: nullableEnumValidator([
     config.authTokens.audience.web,

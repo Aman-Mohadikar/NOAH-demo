@@ -1,10 +1,10 @@
 import { Container } from 'typedi';
 import { UserDao } from '../dao';
-import {
-  HttpException, STATUS, formatErrorResponse,
-} from '../utils';
-
+import { HttpException, formatErrorResponse } from '../utils';
 import { Password } from '../models';
+import { userModel, roleModel, userInvitationModel } from '../schemas';
+import mongoose from 'mongoose';
+import crypto from "crypto";
 
 class UserService {
   constructor() {
@@ -12,17 +12,46 @@ class UserService {
     this.dao = Container.get(UserDao);
   }
 
-  async createUser(client, dto, createdBy) {
-    const messageKey = 'createUser';
-    if (await this.dao.findDuplicate(client, dto)) {
-      throw new HttpException.Conflict(formatErrorResponse(messageKey, 'duplicateUser'));
+
+  async sendInvitation(dto) {
+    try {
+      console.log("sendInvitation", dto);
+      const EXPIRATION_TIME_MINUTES = 60;
+      const RESET_TOKEN = await this.generateRandomToken();
+      const expirationTime = new Date();
+      expirationTime.setTime(expirationTime.getTime() + EXPIRATION_TIME_MINUTES * 60 * 1000);
+
+      const tokenDocument = await userInvitationModel.create({ email: dto.email, token: RESET_TOKEN, expiration_time: expirationTime });
+
+      const user = { email: dto.email, token: tokenDocument.token };
+      return user;
+    } catch (err) {
+      console.log(err);
+      throw new HttpException.ServerError(formatErrorResponse(messageKey, 'unableToSend'));
     }
+  }
+
+
+  async createUser(dto, createdBy) {
+    console.log("createUser", dto);
+    const messageKey = 'createUser';
+
+    if (await this.dao.findDuplicate(dto.email)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'duplicateUser'));
+    if (!mongoose.Types.ObjectId.isValid(dto.roleId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'invalidRoleId'));
+    if (! await this.dao.findRoleById(dto.roleId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'roleNotFound'));
+
+    const tokenData = await this.dao.isTokenExisting(dto.token);
+    if (!tokenData) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'tokenNotFound'));
+    if (tokenData.is_used !== false) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
+
+    const currentTime = new Date();
+    if (tokenData.expiration_time < currentTime) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'tokenExpired'));
 
     try {
       const createUserDto = await UserService.createUserDto(dto, createdBy);
-      const id = await this.dao.createUser(client, createUserDto);
-      await this.dao.attachRole(client, id, dto.role);
-      const user = this.findUserById(client, id);
+      const user = await this.dao.createUser(createUserDto)
+      await this.dao.addUserRole(user._id, dto.roleId);
+      await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true })
       return user;
     } catch (err) {
       console.log(err);
@@ -30,69 +59,20 @@ class UserService {
     }
   }
 
-  async updateUser(client, dto, updatedBy) {
-    const messageKey = 'updateUser';
-    try {
-      const updateUserDto = UserService.updateUserDto(dto, updatedBy);
-      const success = await this.dao.updateUser(client, updateUserDto);
-      if (!success) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToUpdate'));
-    } catch (err) {
-      console.log(err);
-      throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToUpdate'));
+  async generateRandomToken(length = 32) {
+    return crypto.randomBytes(length).toString("hex");
+  };
+
+  static generateRandomNumericPassword = (length) => {
+    const digits = '0123456789';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * digits.length);
+      password += digits[randomIndex];
     }
-    return await this.findUserById(client, dto.id);
+    return password;
   }
 
-  async markUserLogin(client, userId) {
-    const messageKey = 'markUserLogin';
-    try {
-      await this.dao.markUserLogin(client, userId);
-    } catch (error) {
-      console.log(error);
-      throw new HttpException.ServerError(formatErrorResponse(messageKey, 'unableToMark'));
-    }
-  }
-
-  async updateUserWrongLoginCount(wrongLoginCount, userId) {
-    return this.txs.withTransaction(async (client) => {
-      await this.dao.markWrongLoginAttempt(client, wrongLoginCount, userId);
-    });
-  }
-
-  async findUserById(client, id) {
-    return UserService.fromUser(await this.dao.findUserById(client, id));
-  }
-
-  async findUserByEmail(client, email) {
-    return UserService.fromUser(await this.dao.findUserByEmail(client, email));
-  }
-
-  async findPersistedUserById(id) {
-    return this.txs.withTransaction(async (client) => {
-      const user = await this.findUserById(client, id);
-      if (!user) {
-        throw new HttpException.NotFound(
-          formatErrorResponse('fetchUser', 'notFound'),
-        );
-      }
-      return user;
-    });
-  }
-
-
-  async fetchUserProfile(actionUser) {
-    return UserService.fromUserProfile(actionUser);
-  }
-
-  async modifyUserProfile(updateDto, actionUser) {
-    return this.txs.withTransaction(async (client) => {
-      const user = await this.updateUser(client, {
-        ...updateDto,
-        id: actionUser.id,
-      }, actionUser.id);
-      return UserService.fromUserProfile(user);
-    });
-  }
 
   static async createUserDto(dto = {}, createdBy) {
     let hash = null;
@@ -102,27 +82,19 @@ class UserService {
     return {
       firstName: dto.firstName,
       lastName: dto.lastName,
+      phone: dto.phone,
       email: dto.email,
       password: hash,
-      status: STATUS.ACTIVE,
+      roleId: dto.roleId,
       createdBy,
     };
   }
 
-  static updateUserDto(dto = {}, updatedBy) {
-    return {
-      id: dto.id,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      updatedBy,
-    };
-  }
 
   static fromUser(user) {
     if (!user) {
       return null;
     }
-
     return {
       ...user,
     };
@@ -132,12 +104,13 @@ class UserService {
     if (!user) {
       return null;
     }
-
     return {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      dialCode: user.dialCode,
+      contactNumber: user.contactNumber,
       status: user.status,
     };
   }

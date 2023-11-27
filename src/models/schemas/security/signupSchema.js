@@ -1,6 +1,6 @@
 import Joi from 'joi';
 import {
-  requiredStringValidator, requiredEmailValidator,
+  requiredStringValidator, emailValidator, requiredEmailValidator,
 } from '../../../utils';
 
 

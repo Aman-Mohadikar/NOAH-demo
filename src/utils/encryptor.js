@@ -1,11 +1,28 @@
 import crypto from 'crypto';
-import config from '../config';
 
-const ENCRYPTION_KEY = config.encryptionKey; // Must be 256 bits (32 characters)
+
+const generateEncryptionKey = () => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const keyLength = 32;
+  let key = '';
+
+  for (let i = 0; i < keyLength; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    key += characters.charAt(randomIndex);
+  }
+
+  return key;
+};
+
+const encryptionKey = generateEncryptionKey();
+console.log(encryptionKey); // This will output a 32-character random key
+
+
+const ENCRYPTION_KEY = encryptionKey; // Must be 256 bits (32 characters)
 const IV_LENGTH = 16; // For AES, this is always 16
 const ALGO = 'aes-256-gcm';
 
-const encrypt = (text) => {
+export const encrypt = (text) => {
   // random initialization vector
   const iv = crypto.randomBytes(IV_LENGTH);
 
@@ -31,7 +48,7 @@ const encrypt = (text) => {
   return Buffer.concat([salt, iv, tag, encrypted]).toString('base64');
 };
 
-const decrypt = (encData) => {
+export const decrypt = (encData) => {
   // base64 decoding
   const bData = Buffer.from(encData, 'base64');
 
@@ -55,6 +72,6 @@ const decrypt = (encData) => {
 };
 
 
-module.exports = {
-  encrypt, decrypt,
-};
+// module.exports = {
+//   encrypt, decrypt,
+// };
