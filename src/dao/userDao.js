@@ -1,4 +1,4 @@
-import { roleModel, userModel, userDetailModel, userInvitationModel, user_roleModel } from "../schemas";
+import { roleModel, userModel, userDetailModel, userInvitationModel, user_roleModel, email_verification } from "../schemas";
 
 class UserDao {
 
@@ -32,6 +32,42 @@ class UserDao {
     }
   }
 
+
+  async sendVerificationEmail(userId, token) {
+    try {
+      const verificationData = new email_verification({
+        userId,
+        token
+      })
+      await verificationData.save();
+      return verificationData;      
+    } catch (error) {
+      console.log(error);
+      throw new Error('Email verification failed');
+    }
+  }
+
+  
+  async updateInvite(updateUserDto) {
+    try {
+      const verificationData = await email_verification.findOneAndUpdate(
+        { token: updateUserDto.token }, 
+        { email_verification_status: updateUserDto.email_verification_status },
+        { new: true }
+      );
+  
+      if (!verificationData) {
+        throw new Error('Verification data not found');
+      }
+  
+      return verificationData;
+    } catch (error) {
+      console.log(error);
+      throw new Error('Email verification update failed');
+    }
+  }
+  
+  
 
   async findRoleById(roleId) {
     const role = await roleModel.findOne({ _id: roleId });

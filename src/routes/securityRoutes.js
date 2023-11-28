@@ -3,11 +3,8 @@ import { routes, featureLevel, publicPost, publicGet } from './utils';
 import { SecurityService } from '../services';
 
 import {
-  acceptInvitationSchema,
-  loginSchema, requestResetPasswordLinkSchema, resetPasswordSchema
+  loginSchema, requestResetPasswordLinkSchema
 } from '../models';
-import config from '../config';
-import md5 from 'md5';
 
 /**
  * Login/Signup endpoint

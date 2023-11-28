@@ -2,7 +2,7 @@ import { Container } from 'typedi';
 import { UserDao } from '../dao';
 import { HttpException, formatErrorResponse } from '../utils';
 import { Password } from '../models';
-import { userModel, roleModel, userInvitationModel } from '../schemas';
+import { userModel, roleModel, userInvitationModel, email_verification } from '../schemas';
 import mongoose from 'mongoose';
 import crypto from "crypto";
 
@@ -14,6 +14,7 @@ class UserService {
 
 
   async sendInvitation(dto) {
+    const messageKey = 'sendInvitation';
     try {
       console.log("sendInvitation", dto);
       const EXPIRATION_TIME_MINUTES = 60;
@@ -43,6 +44,7 @@ class UserService {
     const tokenData = await this.dao.isTokenExisting(dto.token);
     if (!tokenData) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'tokenNotFound'));
     if (tokenData.is_used !== false) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
+    const RESET_TOKEN = await this.generateRandomToken();
 
     const currentTime = new Date();
     if (tokenData.expiration_time < currentTime) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'tokenExpired'));
@@ -52,12 +54,47 @@ class UserService {
       const user = await this.dao.createUser(createUserDto)
       await this.dao.addUserRole(user._id, dto.roleId);
       await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true })
-      return user;
-    } catch (err) {
+
+      // Generating the RESET_TOKEN
+      const RESET_TOKEN = await this.generateRandomToken();
+
+      // Send verification email with RESET_TOKEN
+      await this.dao.sendVerificationEmail(user._id, RESET_TOKEN)
+
+      return RESET_TOKEN; // Return RESET_TOKEN after sending verification email
+  } catch (err) {
       console.log(err);
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
+  }
+}
+
+  //   try {
+  //     const createUserDto = await UserService.createUserDto(dto, createdBy);
+  //     const user = await this.dao.createUser(createUserDto)
+  //     await this.dao.addUserRole(user._id, dto.roleId);
+  //     await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true });
+  //     await this.dao.sendVerificationEmail(user._id, RESET_TOKEN)
+
+  //     return user;
+  //   } catch (err) {
+  //     console.log(err);
+  //     throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
+  //   }
+  // }
+
+
+  async acceptEmailInvitation(dto) {
+    const messageKey = 'updateUser';
+    try {
+      const updateUserDto = await this.updateUserDto(dto);
+      const success = await this.dao.updateInvite(updateUserDto);
+      if (!success) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToUpdate'));
+    } catch (err) {
+      console.log(err);
+      throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToUpdate'));
     }
   }
+
 
   async generateRandomToken(length = 32) {
     return crypto.randomBytes(length).toString("hex");
@@ -87,6 +124,14 @@ class UserService {
       password: hash,
       roleId: dto.roleId,
       createdBy,
+    };
+  }
+
+
+  async updateUserDto(dto = {}) {
+    return {
+      token: dto.token,
+      email_verification_status: dto.email_verification_status,
     };
   }
 

@@ -4,38 +4,45 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import { isValidString } from "../utils";
 dotenv.config();
-// try {
-//   if (fs.existsSync('.env')) {
-//     console.log('Loading configuration from .env');
-//   } else {
-//     console.error('.env file do not exist ');
-//     process.exit(1);
-//   }
-//   dotenv.config();
-//   const jwtPrivateKey = process.env.JWT_PRIVATE_KEY;
-//   const jwtPublicKey = process.env.JWT_PUBLIC_KEY;
-//   if (!isValidString(jwtPublicKey) || !isValidString(jwtPrivateKey)) {
-//     console.log('Public key and Private key are required for Signing JWT');
-//     process.exit(1)
-//   }
-//   if (!fs.existsSync(jwtPublicKey)) {
-//     console.log('Public key at', jwtPublicKey, 'is not accessable!');
-//     process.exit(1);
-//   }
-//   if (!fs.existsSync(jwtPrivateKey)) {
-//     console.log('Private key at', jwtPrivateKey, 'is not accessable!');
-//     process.exit(1);
-//   }
-// } catch (err) {
-//   console.error("error while loading .env file", err.message);
-//   process.exit(1);
-// }
+
+
+try {
+  if (fs.existsSync('.env')) {
+    console.log('Loading configuration from .env');
+  } else {
+    console.error('.env file do not exist ');
+    process.exit(1);
+  }
+  dotenv.config();
+  const jwtPrivateKey = process.env.PRIVATE_KEY;
+  const jwtPublicKey = process.env.PUBLIC_KEY;
+  if (!isValidString(jwtPublicKey) || !isValidString(jwtPrivateKey)) {
+    console.log('Public key and Private key are required for Signing JWT');
+    process.exit(1)
+  }
+  if (!fs.existsSync(jwtPublicKey)) {
+    console.log('Public key at', jwtPublicKey, 'is not accessable!');
+    process.exit(1);
+  }
+  if (!fs.existsSync(jwtPrivateKey)) {
+    console.log('Private key at', jwtPrivateKey, 'is not accessable!');
+    process.exit(1);
+  }
+} catch (err) {
+  console.error("error while loading .env file", err.message);
+  process.exit(1);
+}
 
 const privateKey = fs.readFileSync(`${process.env.PRIVATE_KEY}`);
 const publicKey = fs.readFileSync(`${process.env.PUBLIC_KEY}`);
 
+
 const configLoader = convict({
-  mongoURI: 'mongodb://localhost:27017',
+  mongoURI: {
+    format : String,
+    default: process.env.DB_STRING || '',
+    env: 'DB_STRING'
+  },
   env: {
     format: ['prod', 'dev', 'stage'],
     default: 'dev',
@@ -67,7 +74,7 @@ const configLoader = convict({
     },
     algorithm: {
       format: String,
-      default: 'RS256',
+      default: 'RS256', 
     },
     audience: {
       web: {
@@ -92,12 +99,12 @@ const configLoader = convict({
   sendgrid: {
     apiKey: {
       format: String,
-      default: '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',
+      default: process.env.SENDGRID_API_KEY || '',
       env: 'SENDGRID_API_KEY',
     },
     from: {
       format: String,
-      default: 'aman@memorres.com',
+      default: process.env.SENDGRID_FROM || '',
       env: 'SENDGRID_FROM',
     }
   },
@@ -107,10 +114,10 @@ const configLoader = convict({
       default: '',
       env: 'RESET_PASSWORD_URL',
     },
-    adminPortal: {
+    invitationUrl: {
       format: String,
-      default: '',
-      env: 'ADMIN_PORTAL_URL',
+      default: process.env.INVITATION_URL || '',
+      env: 'INVITATION_URL',
     },
     appUrl: {
       format: String,
@@ -119,7 +126,7 @@ const configLoader = convict({
     },
     apiUrl: {
       format: String,
-      default: 'http://localhost:8080/api/admins',
+      default: process.env.API_URL || '',
       env: 'API_URL'
     }
   },

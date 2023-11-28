@@ -14,7 +14,8 @@ export default Object.freeze({
     PROFILE: `${API_ROOT}/user-profile`,
     SET_PASSWORD: `${API_ROOT}/set-password`,
     CHANGE_PASSWORD: `${API_ROOT}/change-password`,
-    ACCOUNT_PING: `${API_ROOT}/account-ping`
+    ACCOUNT_PING: `${API_ROOT}/account-ping`,
+    VERIFY_EMAIL: `${API_ROOT}/verify-email/:token`
   },
 
   security: {

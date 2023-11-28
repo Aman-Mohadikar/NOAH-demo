@@ -1,13 +1,11 @@
 import { Container } from 'typedi';
 import {
-  routes, featureLevel, get, put, post, patch, deleteMethod, publicPost, publicGet, publicPut, publicDelete,
+  routes, featureLevel, publicPost,
 } from './utils';
-import { Right } from '../auth';
 import { AdminService } from '../services';
-import { Filter, addUserSchema, sendUserInviteSchema, updateAdminSchema } from '../models';
+import { Filter, addUserSchema, sendUserInviteSchema, updateUserInviteSchema } from '../models';
 
 export default () => {
-
 
   publicPost(featureLevel.production,
     routes.user.INVITE_USER,
@@ -26,4 +24,12 @@ export default () => {
       return service.addAdmin({ token, ...dto }, { ...req.currentUser });
     });
 
+  publicPost(featureLevel.production,
+    routes.user.VERIFY_EMAIL,
+    async (req) => {
+      const { token } = req.params;
+      const service = Container.get(AdminService);
+      const dto = await updateUserInviteSchema.validateAsync(req.body);
+      return service.acceptInvitation({ token, ...dto });
+    });
 };

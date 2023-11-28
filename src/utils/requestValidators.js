@@ -39,6 +39,11 @@ export const requiredStringValidator = (messageKey, key) => (
   Joi.string().required().messages(joiStringError(messageKey, key))
 );
 
+export const emailVerificationValidator = (messageKey, key) => (
+  Joi.string().valid('VERIFIED').required().messages(joiStringError(messageKey, key))
+);
+
+
 export const passwordValidator = (messageKey, key) => (
   Joi.string().min(8).max(15).pattern(/^(?=.*[!@#$%^&*])/).required().messages(joiStringError(messageKey, key))
 );
@@ -103,7 +108,6 @@ export const emailValidator = (messageKey, key) => (
 export const requiredEmailValidator = (messageKey, key) => (
   emailValidator(messageKey, key).required().messages(joiEmailError(messageKey, key))
 );
-
 
 
 export const nullableEmailValidator = (messageKey, key) => (
