@@ -8,6 +8,7 @@ async function startServer() {
   const app = express();
   const now = moment();
 
+  
   console.log('Initializing application');
   console.log(config);
   await appLoaders({ expressApp: app });
