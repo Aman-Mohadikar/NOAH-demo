@@ -74,7 +74,7 @@ const configLoader = convict({
     },
     algorithm: {
       format: String,
-      default: 'RS256', 
+      default: 'ES512', 
     },
     audience: {
       web: {
