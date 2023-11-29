@@ -1,6 +1,6 @@
 import { Container } from 'typedi';
 import UserService from './userService';
-import { HttpException, INVITATION_STATUS, LOGIN_LOG_TYPE, USER_AUDIT_LOGS_TYPE, convertToIsoDateTime, formatErrorResponse, formatSuccessResponse, messageResponse, randomPasswordGenerator } from '../utils';
+import { HttpException, formatErrorResponse, formatSuccessResponse, messageResponse, randomPasswordGenerator } from '../utils';
 import { Role } from '../auth';
 import MessageService from './messageService';
 import { Password } from '../models';
@@ -68,12 +68,6 @@ class AdminService {
           throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToVerify'));
         }
       }
-      
-    // async acceptInvitation(){
-    //     const messageKey = 'acceptInvitation';
-    //     await this.userService.acceptInvitation(token);
-    //     return messageResponse(formatErrorResponse(messageKey, 'verified'))
-    // }
 
 
     static fromAdmin(admin) {

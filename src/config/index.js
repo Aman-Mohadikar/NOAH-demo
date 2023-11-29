@@ -40,7 +40,7 @@ const publicKey = fs.readFileSync(`${process.env.PUBLIC_KEY}`);
 const configLoader = convict({
   mongoURI: {
     format : String,
-    default: process.env.DB_STRING || '',
+    default: process.env.DB_STRING,
     env: 'DB_STRING'
   },
   env: {
