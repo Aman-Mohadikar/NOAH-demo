@@ -51,7 +51,7 @@ const configLoader = convict({
   },
   port: {
     format: 'port',
-    default: 8080,
+    default: 5000,
     env: 'PORT',
   },
   featureLevel: {
@@ -104,14 +104,14 @@ const configLoader = convict({
     },
     from: {
       format: String,
-      default: process.env.SENDGRID_FROM || '',
+      default: 'aman@memorres.com', //process.env.SENDGRID_FROM || '',
       env: 'SENDGRID_FROM',
     }
   },
   systemUrls: {
     resetPassword: {
       format: String,
-      default: '',
+      default: process.env.RESET_PASSWORD || '',
       env: 'RESET_PASSWORD_URL',
     },
     invitationUrl: {

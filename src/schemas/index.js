@@ -7,3 +7,4 @@ export {default as permissionModel} from "./permissionModel";
 export {default as userDetailModel} from "./userDetailsModel";
 export {default as user_roleModel} from "./user-roleModel";
 export {default as email_verification} from "./emailVerificationModel";
+export {default as PasswordResetTokenModel} from "./passwordResetTokenModel";

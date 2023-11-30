@@ -14,8 +14,8 @@ export default () => {
     routes.healthCheck,
     async () => messageResponse('ok'));
 
-  get(featureLevel.production,
-    Right.general.PING,
+  publicGet(featureLevel.production,
+    // Right.general.PING,
     routes.ping,
     async () => messageResponse('ok'));
   

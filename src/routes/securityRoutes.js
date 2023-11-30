@@ -1,5 +1,5 @@
 import { Container } from 'typedi';
-import { routes, featureLevel, publicPost, publicGet } from './utils';
+import { routes, featureLevel, publicPost } from './utils';
 import { SecurityService } from '../services';
 
 import {
@@ -33,5 +33,6 @@ export default () => {
       return service.requestResetPasswordLink(dto);
     }
   );
+
 };
 

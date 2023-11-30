@@ -4,6 +4,7 @@ export const STATUS = Object.freeze({
   DELETED: 'DELETED',
 });
 
+
 export const INVITE_STATUS = Object.freeze({
   PENDING : 'PENDING',
   APPROVED: 'APPROVED',

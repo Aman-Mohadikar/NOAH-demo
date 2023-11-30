@@ -4,12 +4,14 @@ import moment from 'moment';
 import config from '../config';
 import dotenv from 'dotenv';
 import bcrypt from "bcryptjs";
+import MessageService from './messageService';
+import crypto from 'crypto';
 import {
   HttpException, encrypt,
-  formatErrorResponse, STATUS,
+  formatErrorResponse, STATUS, formatSuccessResponse, messageResponse
 } from '../utils';
 import UserService from './userService';
-import { userModel, userLoginDetailsModel } from '../schemas';
+import { userModel, userLoginDetailsModel, userDetailModel } from '../schemas';
 dotenv.config();
 
 class SecurityService {
@@ -77,6 +79,40 @@ class SecurityService {
   }
 
 
+  async requestResetPasswordLink(dto) {
+    const messageKey = 'requestResetPasswordLink';
+    const success = formatSuccessResponse(messageKey, 'linkSend');
+
+    try {
+      const user = await userModel.findOne({ email: dto.email });
+
+      if (!user) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidUser'));
+      if (!SecurityService.canResetPassword(user)) {
+        throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'notAllowed'));
+      }
+
+      const expiration_time = new Date();
+      expiration_time.setHours(expiration_time.getHours() + 1);
+
+      const token = await this.userService.generateRandomToken();
+      await this.userService.createResetPasswordTokenForUser({ userId: user.id, token, expiration_time });
+
+      const tokenDto = await this.userService.findResetPasswordTokenForUser({ token });
+      if (!tokenDto) {
+        throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'tokenNotCreated'));
+      }
+
+      await MessageService.sendPasswordReset(user, tokenDto, dto.type);
+      console.log("user", user)
+      return messageResponse(success);
+
+    } catch (error) {
+      console.log(error.message);
+      throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'failed'));
+    }
+  }
+
+
   static async createToken(ipAddress, identifier, aud) {
     const payload = {
       exp: SecurityService.anyIpAddressExpiryTimestamp(),
@@ -109,6 +145,10 @@ class SecurityService {
       throw new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser'));
     }
     return true;
+  }
+
+  static canResetPassword(user) {
+    return (user.status === STATUS.ACTIVE);
   }
 
 
