@@ -55,13 +55,11 @@ class UserService {
       await this.dao.addUserRole(user._id, dto.roleId);
       await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true })
 
-      // Generating the RESET_TOKEN
       const RESET_TOKEN = await this.generateRandomToken();
 
-      // Send verification email with RESET_TOKEN
       await this.dao.sendVerificationEmail(user._id, RESET_TOKEN)
 
-      return RESET_TOKEN; // Return RESET_TOKEN after sending verification email
+      return RESET_TOKEN; 
   } catch (err) {
       console.log(err);
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
@@ -108,6 +106,14 @@ class UserService {
       password += digits[randomIndex];
     }
     return password;
+  }
+
+  async createResetPasswordTokenForUser( dto) {
+    return this.dao.createResetPasswordTokenForUser( dto);
+  }
+
+  async findResetPasswordTokenForUser(dto) {
+    return this.dao.findResetPasswordTokenForUser(dto);
   }
 
 

@@ -8,5 +8,5 @@ export default Joi.object(((messageKey) => ({
   aud: nullableEnumValidator([
     config.authTokens.audience.web,
     config.authTokens.audience.app],
-  messageKey, 'aud'),
+    messageKey, 'aud'),
 }))('login')).options({ stripUnknown: true });

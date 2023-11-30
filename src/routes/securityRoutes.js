@@ -33,5 +33,15 @@ export default () => {
       return service.requestResetPasswordLink(dto);
     }
   );
+
+  publicPost(
+    featureLevel.production,
+    routes.security.REQUEST_RESET_PASSWORD_LINK,
+    async (req) => {
+      const service = Container.get(SecurityService);
+      const dto = await requestResetPasswordLinkSchema.validateAsync(req.body);
+      return service.requestResetPasswordLink(dto);
+    }
+  );
 };
 

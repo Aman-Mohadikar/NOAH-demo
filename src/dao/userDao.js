@@ -1,4 +1,4 @@
-import { roleModel, userModel, userDetailModel, userInvitationModel, user_roleModel, email_verification } from "../schemas";
+import { roleModel, userModel, userDetailModel, userInvitationModel, user_roleModel, email_verification, PasswordResetTokenModel } from "../schemas";
 
 class UserDao {
 
@@ -40,34 +40,34 @@ class UserDao {
         token
       })
       await verificationData.save();
-      return verificationData;      
+      return verificationData;
     } catch (error) {
       console.log(error);
       throw new Error('Email verification failed');
     }
   }
 
-  
+
   async updateInvite(updateUserDto) {
     try {
       const verificationData = await email_verification.findOneAndUpdate(
-        { token: updateUserDto.token }, 
+        { token: updateUserDto.token },
         { email_verification_status: updateUserDto.email_verification_status },
         { new: true }
       );
-  
+
       if (!verificationData) {
         throw new Error('Verification data not found');
       }
-  
+
       return verificationData;
     } catch (error) {
       console.log(error);
       throw new Error('Email verification update failed');
     }
   }
-  
-  
+
+
 
   async findRoleById(roleId) {
     const role = await roleModel.findOne({ _id: roleId });
@@ -96,6 +96,28 @@ class UserDao {
       throw error;
     }
   }
+
+  async createResetPasswordTokenForUser(dto) {
+    await PasswordResetTokenModel.deleteOne({ user_id: dto.userId });
+  
+    const expirationTime = new Date(dto.expiration_time);
+    const newToken = new PasswordResetTokenModel({
+      user_id: dto.userId,
+      token: dto.token,
+      expiration_time: expirationTime 
+    });
+  
+    const insertedToken = await newToken.save();
+    return !!insertedToken;
+  }
+  
+
+  async findResetPasswordTokenForUser(dto) {
+    const tokenData = await PasswordResetTokenModel.findOne({ token: dto.token });
+    return tokenData;
+  }
+
+
 }
 
 

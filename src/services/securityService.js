@@ -4,12 +4,14 @@ import moment from 'moment';
 import config from '../config';
 import dotenv from 'dotenv';
 import bcrypt from "bcryptjs";
+import MessageService from './messageService';
+import crypto from 'crypto';
 import {
   HttpException, encrypt,
-  formatErrorResponse, STATUS,
+  formatErrorResponse, STATUS, formatSuccessResponse, messageResponse
 } from '../utils';
 import UserService from './userService';
-import { userModel, userLoginDetailsModel } from '../schemas';
+import { userModel, userLoginDetailsModel, userDetailModel } from '../schemas';
 dotenv.config();
 
 class SecurityService {
@@ -77,6 +79,115 @@ class SecurityService {
   }
 
 
+  async requestResetPasswordLink(dto) {
+    const messageKey = 'requestResetPasswordLink';
+    const success = formatSuccessResponse(messageKey, 'linkSend');
+  
+    try {
+      // const user = await userModel.findOne({ email: dto.email });
+      const userEmail = 'aman@memorres.com';
+
+const user = [
+  {
+    $match: { email: userEmail } // Match the user by email
+  },
+  {
+    $lookup: {
+      from: 'userDetail', // Name of the userDetails collection
+      localField: '_id', // Field from users collection
+      foreignField: 'userId', // Field from userDetails collection
+      as: 'userDetail' // Alias for the joined data
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      email: 1,
+      userDetails: {
+        $cond: {
+          if: { $eq: [{ $size: '$userDetail' }, 0] }, // If userDetails array is empty
+          then: null,
+          else: {
+            firstName: { $arrayElemAt: ['$userDetail.firstName', 0] },
+            lastName: { $arrayElemAt: ['$userDetail.lastName', 0] },
+            phone: { $arrayElemAt: ['$userDetail.phone', 0] }
+            // Add more fields from userDetails if needed
+          }
+        }
+      }
+    }
+  }
+];
+console.log(user)
+
+      if (!user) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidUser'));
+      if (!SecurityService.canResetPassword(user)) {
+        throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'notAllowed'));
+      }
+  
+      const expiration_time = new Date();
+      expiration_time.setHours(expiration_time.getHours() + 1); 
+  
+      const token = await this.userService.generateRandomToken();
+      await this.userService.createResetPasswordTokenForUser({ userId: user.id, token, expiration_time });
+  
+      const tokenDto = await this.userService.findResetPasswordTokenForUser({ token });
+      if (!tokenDto) {
+        throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'tokenNotCreated'));
+      }
+  
+      await MessageService.sendPasswordReset(user, tokenDto, dto.type);
+      console.log("user", user)
+      return messageResponse(success);
+  
+    } catch (error) {
+      console.log(error.message);
+      throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'failed'));
+    }
+  }
+  
+
+  // async requestResetPasswordLink(dto) {
+  //   const messageKey = 'requestResetPasswordLink';
+  //   const success = formatSuccessResponse(messageKey, 'linkSend');
+  //   try {
+  //     return await this.txs.withTransaction(async (client) => {
+  //       const user = await this.userService.findUserByEmail(client, dto.email);
+  //       if (!user) {
+  //         throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidUser'));
+  //       }
+  //       if (!SecurityService.canResetPassword(user)) {
+  //         throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'notAllowed'));
+  //       }
+  //       const userRoles = user.roles.map(obj => obj.role);
+  //       const isSuperAdmin = userRoles.includes(Role.roleValues.SUPER_ADMIN);
+  //       let token = null;
+  //       let validitySecs = null;
+  //       if (dto.type === RESET_PASSWORD_TYPES.OTP) {
+  //         token = `${randomNumber(6)}`;
+  //         validitySecs = SecurityService.OTP_TOKEN_VALIDITY_SECS;
+  //       } else if (isSuperAdmin && !(dto.type === RESET_PASSWORD_TYPES.OTP)) {
+  //         token = uuidv4();
+  //         validitySecs = SecurityService.EMAIL_TOKEN_VALIDITY_SECS
+  //       }
+  //       await this.userService.createResetPasswordTokenForUser(client,
+  //         { userId: user.id, token, validitySecs });
+  //       /** @todo Send password reset email to users email address */
+  //       const tokenDto = await this.userService.findResetPasswordTokenForUser(client,
+  //         { token });
+  //       if (!tokenDto) {
+  //         throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'tokenNotCreated'));
+  //       }
+  //       await MessageService.sendPasswordReset(user, tokenDto, dto.type);
+  //       return messageResponse(success);
+  //     });
+  //   } catch (error) {
+  //     console.log(error.message); // eslint-disable-line no-console
+  //     throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'failed'));
+  //   }
+  // }
+
+
   static async createToken(ipAddress, identifier, aud) {
     const payload = {
       exp: SecurityService.anyIpAddressExpiryTimestamp(),
@@ -109,6 +220,10 @@ class SecurityService {
       throw new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser'));
     }
     return true;
+  }
+
+  static canResetPassword(user) {
+    return (user.status === STATUS.ACTIVE);
   }
 
 

@@ -1,11 +1,12 @@
 /* eslint-disable class-methods-use-this */
 import mongoose from 'mongoose';
-import config from '../config';
-import { userModel } from "../schemas"
+import dotenv from "dotenv";
+import { userModel } from "../schemas";
+dotenv.config();
 
 class Database {
   constructor() {
-    mongoose.connect(config.mongoURI, {
+    mongoose.connect(process.env.DB_STRING, {
       useNewUrlParser: true, // Add other options as needed
       useUnifiedTopology: true,
     });
