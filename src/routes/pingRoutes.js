@@ -19,8 +19,8 @@ export default () => {
     routes.ping,
     async () => messageResponse('ok'));
   
-  get(featureLevel.production,
-    Right.user.ACCOUNT_PING,
+  publicGet(featureLevel.production,
+    // Right.user.ACCOUNT_PING,
     routes.user.ACCOUNT_PING,
     async(req) => {
       const service = Container.get(UserService);

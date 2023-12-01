@@ -51,7 +51,7 @@ const configLoader = convict({
   },
   port: {
     format: 'port',
-    default: 5000,
+    default: 8080,
     env: 'PORT',
   },
   featureLevel: {

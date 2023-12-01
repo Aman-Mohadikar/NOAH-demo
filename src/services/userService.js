@@ -16,7 +16,6 @@ class UserService {
   async sendInvitation(dto) {
     const messageKey = 'sendInvitation';
     try {
-      console.log("sendInvitation", dto);
       const EXPIRATION_TIME_MINUTES = 60;
       const RESET_TOKEN = await this.generateRandomToken();
       const expirationTime = new Date();
@@ -27,14 +26,12 @@ class UserService {
       const user = { email: dto.email, token: tokenDocument.token };
       return user;
     } catch (err) {
-      console.log(err);
       throw new HttpException.ServerError(formatErrorResponse(messageKey, 'unableToSend'));
     }
   }
 
 
   async createUser(dto, createdBy) {
-    console.log("createUser", dto);
     const messageKey = 'createUser';
 
     if (await this.dao.findDuplicate(dto.email)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'duplicateUser'));
@@ -42,6 +39,7 @@ class UserService {
     if (! await this.dao.findRoleById(dto.roleId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'roleNotFound'));
 
     const tokenData = await this.dao.isTokenExisting(dto.token);
+
     if (!tokenData) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'tokenNotFound'));
     if (tokenData.is_used !== false) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
     const RESET_TOKEN = await this.generateRandomToken();
@@ -61,24 +59,9 @@ class UserService {
 
       return RESET_TOKEN;
     } catch (err) {
-      console.log(err);
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
     }
   }
-
-  //   try {
-  //     const createUserDto = await UserService.createUserDto(dto, createdBy);
-  //     const user = await this.dao.createUser(createUserDto)
-  //     await this.dao.addUserRole(user._id, dto.roleId);
-  //     await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true });
-  //     await this.dao.sendVerificationEmail(user._id, RESET_TOKEN)
-
-  //     return user;
-  //   } catch (err) {
-  //     console.log(err);
-  //     throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
-  //   }
-  // }
 
 
   async acceptEmailInvitation(dto) {
@@ -88,7 +71,6 @@ class UserService {
       const success = await this.dao.updateInvite(updateUserDto);
       if (!success) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToUpdate'));
     } catch (err) {
-      console.log(err);
       throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToUpdate'));
     }
   }
@@ -124,6 +106,9 @@ class UserService {
     return this.dao.changeUserPassword(dto);
   }
 
+  async findUserByEmail(dto){
+    return this.dao.findUserByEmail(dto);
+  }
 
   static async createUserDto(dto = {}, createdBy) {
     let hash = null;

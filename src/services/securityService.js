@@ -5,9 +5,11 @@ import config from '../config';
 import dotenv from 'dotenv';
 import bcrypt from "bcryptjs";
 import MessageService from './messageService';
-import crypto from 'crypto';
 import {
-  HttpException, encrypt,
+  TokenValidationResult
+} from '../auth';
+import {
+  HttpException, encrypt, decrypt,
   formatErrorResponse, STATUS, formatSuccessResponse, messageResponse
 } from '../utils';
 import UserService from './userService';
@@ -87,9 +89,7 @@ class SecurityService {
       const user = await userModel.findOne({ email: dto.email });
 
       if (!user) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidUser'));
-      if (!SecurityService.canResetPassword(user)) {
-        throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'notAllowed'));
-      }
+      if (!SecurityService.canResetPassword(user)) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'notAllowed'));
 
       const expiration_time = new Date();
       expiration_time.setHours(expiration_time.getHours() + 1);
@@ -98,18 +98,52 @@ class SecurityService {
       await this.userService.createResetPasswordTokenForUser({ userId: user.id, token, expiration_time });
 
       const tokenDto = await this.userService.findResetPasswordTokenForUser({ token });
-      if (!tokenDto) {
-        throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'tokenNotCreated'));
-      }
+      if (!tokenDto) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'tokenNotCreated'));
 
       await MessageService.sendPasswordReset(user, tokenDto, dto.type);
-      console.log("user", user)
       return messageResponse(success);
 
     } catch (error) {
-      console.log(error.message);
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'failed'));
     }
+  }
+
+
+
+  async resetPassword(dto) {
+    const messageKey = 'resetPassword';
+    const invalidToken = new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
+    const tokenDto = await this.userService.findResetPasswordTokenForUser(
+      { token: dto.token });
+    if (!tokenDto) {
+      throw invalidToken;
+    }
+    const user = await this.userService.findUserById(tokenDto.userId);
+    if (!user) {
+      throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidUser'));
+    }
+    if (!SecurityService.canResetPassword(user)) {
+      throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'notAllowed'));
+    }
+
+    const validTill = tokenDto.createdOn.clone()
+      .add(tokenDto.validitySecs, 'second');
+
+    if (validTill.isBefore()) {
+      throw invalidToken;
+    }
+
+    const hash = await new Password(dto.newPassword).hashPassword();
+    await this.userService.changeUserPassword({
+      userId: user.id,
+      password: hash,
+      updatedBy: user.id,
+    });
+    await this.userService.removeResetPasswordTokenForUser({
+      userId: tokenDto.userId, token: tokenDto.token
+    });
+
+    return messageResponse(formatSuccessResponse(messageKey, 'resetSucccessfully'));
   }
 
 
@@ -151,6 +185,34 @@ class SecurityService {
     return (user.status === STATUS.ACTIVE);
   }
 
+  static isExpired(ip, payload, currentTime) {
+    return (!SecurityService.isValidForGeneralExpiration(currentTime, payload)
+      && !SecurityService.isValidForSameIpExpiration(currentTime, ip, payload));
+  }
+
+
+  async validateToken(ip, payload) {
+    if ((payload.aud !== config.authTokens.audience.app)
+      && SecurityService.isExpired(ip, payload, moment())) {
+      return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.EXPIRED);
+    } if (SecurityService.isOldVersion(payload)) {
+      return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.OLD_VERSION);
+    }
+
+    try {
+      const userId = decrypt(payload.sub);
+      const user = await userModel.findOne({ _id: userId })
+      if (!user || (user.status !== STATUS.ACTIVE)) {
+        return new TokenValidationResult(
+          TokenValidationResult.tokenValidationStatus.INACTIVE_USER,
+        );
+      }
+      return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.VALID, user);
+    } catch (e) {
+      return new TokenValidationResult(TokenValidationResult.tokenValidationStatus.INVALID_USER);
+    }
+  }
+
 
   static accountBlocked(userLoginDetails) {
     let blocked = false;
@@ -187,6 +249,9 @@ class SecurityService {
       .unix();
   }
 
+  static updateToken(ipAddress, identifier, aud, hasTemporaryPassowrd) {
+    return SecurityService.createToken(ipAddress, identifier, aud, hasTemporaryPassowrd);
+  }
 
   static isOldVersion(payload) {
     return config.authTokens.version !== payload.version;

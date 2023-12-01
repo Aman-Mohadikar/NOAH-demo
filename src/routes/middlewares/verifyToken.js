@@ -2,7 +2,7 @@
 import jwt from 'jsonwebtoken';
 import { Container } from 'typedi';
 import config from '../../config';
-import { HttpException, formatErrorResponse } from '../../utils';
+import { HttpException, formatErrorResponse, decrypt } from '../../utils';
 import { SecurityService } from '../../services';
 import { TokenValidationResult, Authentication } from '../../auth';
 
@@ -12,6 +12,7 @@ import { TokenValidationResult, Authentication } from '../../auth';
  * Authorization: Bearer ${JWT}
  *
  */
+
 
 const getTokenFromHeader = (req) => {
   /**
@@ -24,6 +25,7 @@ const getTokenFromHeader = (req) => {
   }
   return null;
 };
+
 
 
 const verifyToken = async (req, res, next) => {
@@ -62,7 +64,7 @@ const verifyToken = async (req, res, next) => {
                 return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'noSubscriptionActive')));
               case TokenValidationResult.tokenValidationStatus.VALID: {
                 const { user } = result;
-                user.rights = Authentication.userEffectiveRights(user);
+                // user.rights = Authentication.userEffectiveRights(user); // comment this line 
                 user.tokenAud = payload.aud;
                 delete user.passwordHash;
                 req.currentUser = { ...user };

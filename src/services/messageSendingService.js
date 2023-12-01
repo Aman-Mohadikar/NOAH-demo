@@ -32,7 +32,6 @@ class MessageSendingService {
     try {
       formattedMessage = await message.getFormattedMessage();
     } catch (err) {
-      console.log(err);
       throw MessageSendingService.sendMessageException('invalidFormattedMessage');
     }
 

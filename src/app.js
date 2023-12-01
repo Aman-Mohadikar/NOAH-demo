@@ -10,7 +10,7 @@ async function startServer() {
 
   
   console.log('Initializing application');
-  console.log(config);
+  // console.log(config);
   await appLoaders({ expressApp: app });
 
   app.listen(config.port, async () => {

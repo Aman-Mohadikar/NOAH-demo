@@ -1,10 +1,11 @@
 import { Container } from 'typedi';
-import { routes, featureLevel, publicPost } from './utils';
+import { routes, featureLevel, publicPost, post } from './utils';
 import { SecurityService } from '../services';
 
 import {
   loginSchema, requestResetPasswordLinkSchema
 } from '../models';
+import { Right } from '../auth';
 
 /**
  * Login/Signup endpoint
@@ -24,8 +25,9 @@ export default () => {
     }
   );
 
-  publicPost(
+  post(
     featureLevel.production,
+    Right.general.RESET_PASSWORD,
     routes.security.REQUEST_RESET_PASSWORD_LINK,
     async (req) => {
       const service = Container.get(SecurityService);
