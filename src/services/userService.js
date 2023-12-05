@@ -35,14 +35,13 @@ class UserService {
     const messageKey = 'createUser';
 
     if (await this.dao.findDuplicate(dto.email)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'duplicateUser'));
-    if (!mongoose.Types.ObjectId.isValid(dto.roleId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'invalidRoleId'));
     if (! await this.dao.findRoleById(dto.roleId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'roleNotFound'));
+    if (! await this.dao.findDesignationById(dto.designationId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'designationNotFound'));
 
     const tokenData = await this.dao.isTokenExisting(dto.token);
 
     if (!tokenData) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'tokenNotFound'));
     if (tokenData.is_used !== false) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
-    const RESET_TOKEN = await this.generateRandomToken();
 
     const currentTime = new Date();
     if (tokenData.expiration_time < currentTime) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'tokenExpired'));
@@ -50,7 +49,6 @@ class UserService {
     try {
       const createUserDto = await UserService.createUserDto(dto, createdBy);
       const user = await this.dao.createUser(createUserDto)
-      await this.dao.addUserRole(user._id, dto.roleId);
       await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true })
 
       const RESET_TOKEN = await this.generateRandomToken();
@@ -59,6 +57,7 @@ class UserService {
 
       return RESET_TOKEN;
     } catch (err) {
+      console.log(err)
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
     }
   }
@@ -124,6 +123,7 @@ class UserService {
       firstName: dto.firstName,
       lastName: dto.lastName,
       phone: dto.phone,
+      designationId: dto.designationId,
       email: dto.email,
       password: hash,
       roleId: dto.roleId,

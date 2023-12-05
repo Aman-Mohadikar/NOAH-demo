@@ -25,9 +25,9 @@ export default () => {
     }
   );
 
-  post(
+  publicPost(
     featureLevel.production,
-    Right.general.RESET_PASSWORD,
+    // Right.general.RESET_PASSWORD,
     routes.security.REQUEST_RESET_PASSWORD_LINK,
     async (req) => {
       const service = Container.get(SecurityService);

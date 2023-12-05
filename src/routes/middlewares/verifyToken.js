@@ -58,7 +58,7 @@ const verifyToken = async (req, res, next) => {
                 return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser')));
               case TokenValidationResult.tokenValidationStatus.VALID: {
                 const { user } = result;
-                user.rights = Authentication.userEffectiveRights(user); // comment this line 
+                // user.rights = Authentication.userEffectiveRights(user); // comment this line 
                 user.tokenAud = payload.aud;
                 delete user.passwordHash;
                 req.currentUser = { ...user };

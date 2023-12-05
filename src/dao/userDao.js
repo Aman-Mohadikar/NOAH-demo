@@ -1,6 +1,5 @@
-import { roleModel, userModel, userDetailModel, userInvitationModel, user_roleModel, email_verification, PasswordResetTokenModel } from "../schemas";
+import { roleModel, userModel, userInvitationModel, user_roleModel, email_verification, PasswordResetTokenModel, designationModel } from "../schemas";
 import Database from "../db";
-import userRole from "../schemas/user-roleModel";
 
 class UserDao {
 
@@ -8,35 +7,59 @@ class UserDao {
     this.database = new Database();
   }
 
-  async createUser(createUserDto) {
+  async createUser(createUserDto, createdBy) {
     try {
       const user = new userModel({
+        firstName: createUserDto.firstName,
+        lastName: createUserDto.lastName,
         email: createUserDto.email,
         password: createUserDto.password,
         status: createUserDto.status,
-        createdBy: createUserDto.createdBy,
-        updatedBy: createUserDto.createdBy,
-      });
-
-      const userDetails = new userDetailModel({
-        userId: user._id,
-        firstName: createUserDto.firstName,
-        lastName: createUserDto.lastName,
+        roleId: createUserDto.roleId,
         phone: createUserDto.phone,
-        // roleId: createUserDto.roleId,
-        createdBy: user._id,
-        updatedBy: user._id,
+        designationId: createUserDto.designationId,
+        createdBy: createdBy,
+        updatedBy: createdBy,
       });
-
+  
       const createdUser = await user.save();
-      userDetails.userId = createdUser._id;
-      await userDetails.save();
-
+  
       return createdUser;
     } catch (error) {
       throw error;
     }
   }
+  
+
+  // async createUser(createUserDto) {
+  //   try {
+  //     const user = new userModel({
+  //       email: createUserDto.email,
+  //       password: createUserDto.password,
+  //       status: createUserDto.status,
+  //       createdBy: createUserDto.createdBy,
+  //       updatedBy: createUserDto.createdBy,
+  //     });
+
+  //     const userDetails = new userDetailModel({
+  //       userId: user._id,
+  //       firstName: createUserDto.firstName,
+  //       lastName: createUserDto.lastName,
+  //       phone: createUserDto.phone,
+  //       // roleId: createUserDto.roleId,
+  //       createdBy: user._id,
+  //       updatedBy: user._id,
+  //     });
+
+  //     const createdUser = await user.save();
+  //     userDetails.userId = createdUser._id;
+  //     await userDetails.save();
+
+  //     return createdUser;
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 
 
   async sendVerificationEmail(userId, token) {
@@ -76,8 +99,13 @@ class UserDao {
 
 
   async findRoleById(roleId) {
-    const role = await roleModel.findOne({ _id: roleId });
+    const role = await roleModel.findOne({ id: roleId });
     return !!role;
+  }
+
+  async findDesignationById(designationId) {
+    const designation = await designationModel.findById(designationId);
+    return !!designation;
   }
 
   async findDuplicate(email) {
@@ -89,19 +117,6 @@ class UserDao {
     return await userInvitationModel.findOne({ token });
   }
 
-
-  async addUserRole(userId, roleId) {
-    try {
-      const userRole = new user_roleModel({
-        userId,
-        roleId
-      });
-      const savedUserRole = await userRole.save();
-      return savedUserRole;
-    } catch (error) {
-      throw error;
-    }
-  }
 
   async createResetPasswordTokenForUser(dto) {
     await PasswordResetTokenModel.deleteOne({ user_id: dto.userId });
