@@ -8,6 +8,6 @@ const passwordResetTokenSchema = new mongoose.Schema({
     expiration_time: { type: Date, required: true },
 }, { timestamps: true })
 
-const passwordResetToken = mongoose.model('password-reset-token', passwordResetTokenSchema);
+const passwordResetToken = mongoose.model('PasswordResetToken', passwordResetTokenSchema);
 
 export default passwordResetToken;

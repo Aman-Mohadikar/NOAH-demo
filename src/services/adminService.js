@@ -44,19 +44,7 @@ class AdminService {
     
         return messageResponse(formatSuccessResponse(messageKey, 'created'));
     }
-    // async addAdmin(dto, actionUser) {
-    //     const messageKey = 'createUser';
-    //     const finalDto = {
-    //         ...dto,
-    //     }
 
-    //     await this.userService.createUser(finalDto, actionUser.id);
-    //     if(finalDto.token){
-    //         await MessageService.sendInvitationDetail(finalDto);
-            
-    //     }
-    //     return messageResponse(formatSuccessResponse(messageKey, 'created'));
-    // }
 
     async acceptInvitation(token) {
         const messageKey = 'acceptInvitation';

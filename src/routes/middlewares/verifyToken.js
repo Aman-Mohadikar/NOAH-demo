@@ -56,15 +56,9 @@ const verifyToken = async (req, res, next) => {
                 return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'invalidToken')));
               case TokenValidationResult.tokenValidationStatus.INACTIVE_USER:
                 return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser')));
-              case TokenValidationResult.tokenValidationStatus.NO_COMPANY_FOUND:
-                return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'noCompanyAttached')));
-              case TokenValidationResult.tokenValidationStatus.INACTIVE_COMPANY:
-                return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveCompany')));
-              case TokenValidationResult.tokenValidationStatus.NO_SUBSCRIPTION:
-                return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'noSubscriptionActive')));
               case TokenValidationResult.tokenValidationStatus.VALID: {
                 const { user } = result;
-                // user.rights = Authentication.userEffectiveRights(user); // comment this line 
+                user.rights = Authentication.userEffectiveRights(user); // comment this line 
                 user.tokenAud = payload.aud;
                 delete user.passwordHash;
                 req.currentUser = { ...user };

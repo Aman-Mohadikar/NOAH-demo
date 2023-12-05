@@ -3,7 +3,7 @@ import { routes, featureLevel, publicPost, post } from './utils';
 import { SecurityService } from '../services';
 
 import {
-  loginSchema, requestResetPasswordLinkSchema
+  loginSchema, requestResetPasswordLinkSchema, resetPasswordSchema
 } from '../models';
 import { Right } from '../auth';
 
@@ -33,6 +33,16 @@ export default () => {
       const service = Container.get(SecurityService);
       const dto = await requestResetPasswordLinkSchema.validateAsync(req.body);
       return service.requestResetPasswordLink(dto);
+    }
+  );
+
+  publicPost(
+    featureLevel.production,
+    routes.security.RESET_PASSWORD,
+    async (req) => {
+      const service = Container.get(SecurityService);
+      const dto = await resetPasswordSchema.validateAsync(req.body);
+      return service.resetPassword(dto);
     }
   );
 

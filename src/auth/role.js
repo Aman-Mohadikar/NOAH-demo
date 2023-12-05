@@ -23,6 +23,7 @@ class Role {
 
     static roleValues = Object.freeze({
       USER: 'USER',
+      ADMIN_PANEL: 'ADMIN_PANEL'
     });
 
     roleIds = Object.freeze({

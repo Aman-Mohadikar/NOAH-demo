@@ -80,6 +80,11 @@ class UserService {
     return crypto.randomBytes(length).toString("hex");
   };
 
+
+  async removeResetPasswordTokenForUser(client, dto) {
+    return this.dao.removeResetPasswordTokenForUser(client, dto);
+  }
+
   static generateRandomNumericPassword = (length) => {
     const digits = '0123456789';
     let password = '';
@@ -107,7 +112,7 @@ class UserService {
   }
 
   async findUserByEmail(dto){
-    return this.dao.findUserByEmail(dto);
+    return this.dao.getUserByEmail(dto);
   }
 
   static async createUserDto(dto = {}, createdBy) {

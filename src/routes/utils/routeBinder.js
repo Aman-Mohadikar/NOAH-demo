@@ -159,7 +159,7 @@ const initRouteWith = (level, right, path, method, callback, middlewares = []) =
       try {
         const { currentUser } = req;
         if (!(currentUser
-                || Authentication.hasPermission(req.currentUser.rights || [], right))) {
+                && Authentication.hasPermission(req.currentUser.rights || [], right))) {
           throw new HttpException.Forbidden(formatErrorResponse('authToken', 'notAuthorised'));
         } // removed && and put ||
         const data = await callback(req, res, next);

@@ -31,7 +31,6 @@ class MessageService {
       invitationLink: invitationLink,
       logo: "",
     };
-    console.log(data);
     const message = new EmailMessage(subject, MessageService.INVITE_USER, data);
     await MessageService.safeSendEmailMessage(message, user.email);
   }

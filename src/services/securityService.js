@@ -4,16 +4,19 @@ import moment from 'moment';
 import config from '../config';
 import dotenv from 'dotenv';
 import bcrypt from "bcryptjs";
+import { Password } from '../models';
 import MessageService from './messageService';
 import {
-  TokenValidationResult
+  TokenValidationResult, Right, Role
 } from '../auth';
 import {
   HttpException, encrypt, decrypt,
   formatErrorResponse, STATUS, formatSuccessResponse, messageResponse
 } from '../utils';
 import UserService from './userService';
-import { userModel, userLoginDetailsModel, userDetailModel } from '../schemas';
+import { userModel, userLoginDetailsModel, userDetailModel, PasswordResetTokenModel, user_roleModel } from '../schemas';
+import passwordResetToken from '../schemas/passwordResetTokenModel';
+import userRole from '../schemas/user-roleModel';
 dotenv.config();
 
 class SecurityService {
@@ -36,6 +39,76 @@ class SecurityService {
     this.userService = Container.get(UserService);
   }
 
+  // async login(userMetaData, email, password) {
+  //   const { ipAddress } = userMetaData;
+  //   const messageKey = 'login';
+  //   const invalidLoginErr = new HttpException.Forbidden(formatErrorResponse(messageKey, 'invalidCredentials'));
+
+  //   // const user = await userModel.findOne({ email: email }).populate('roleId');
+  //   const user = await this.userService.findUserByEmail(email);
+  //   console.log("user", user)
+  //   let userLoginDetails = await userLoginDetailsModel.findOne({ userId: user?._id });
+
+
+  //   if (SecurityService.accountBlocked(userLoginDetails)) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'accountBlocked'));
+
+  //   // const userRoles = user.roles.map(obj => obj.roleName);
+  //   // console.log("userRoles", user.roles)
+  //   const userRoles = user.roles.map(obj => obj.roleId.roleName);
+  //   console.log("userRoles", userRoles);
+
+  //   const isSuperAdmin = userRoles.includes(Role.roleValues.ADMIN_PANEL);
+  //   console.log("isSuperAdmin", isSuperAdmin)
+  //   if (!isSuperAdmin) {
+  //     throw invalidLoginErr;
+  //   }
+
+  //   // const roleIds = [];
+  //   // user.roles.map(obj => {
+  //   //   const roleId = new Role(obj.role).getId();
+  //   //   roleIds.push(roleId);
+  //   // });
+
+  //   const roleIds = user.roles.map(obj => obj.roleId.role);
+  //   // const newRole = parseInt(roleIds)
+  //   console.log("roleIds", roleIds);
+
+
+  //   const largestRole = Math.min(...roleIds);
+
+  //   // console.log("largestRole", largestRole)
+
+  //   if (!user || user.status !== 'ACTIVE' || !bcrypt.compareSync(password, user.password)) {
+  //     if (userLoginDetails) {
+  //       userLoginDetails.last_wrong_login_attempt = new Date();
+  //       userLoginDetails.wrong_login_count += 1;
+  //       await userLoginDetails.save();
+  //     }
+  //     throw invalidLoginErr;
+  //   }
+
+  //   if (userLoginDetails) {
+  //     userLoginDetails.last_wrong_login_attempt = null;
+  //     userLoginDetails.wrong_login_count = 0;
+  //     userLoginDetails.last_login = new Date();
+  //     userLoginDetails.last_login_ip = ipAddress;
+  //     await userLoginDetails.save();
+  //   } else {
+  //     userLoginDetails = new userLoginDetailsModel({
+  //       userId: user._id,
+  //       last_login: new Date(),
+  //       last_login_ip: ipAddress,
+  //       wrong_login_count: 0
+  //     });
+  //     await userLoginDetails.save();
+  //   }
+
+  //   if (await this.canLogin(user)) {
+  //     const token = await SecurityService.createToken(ipAddress, user.id, config.authTokens.audience.app, largestRole);
+  //     return { token };
+  //   }
+  //   throw invalidLoginErr;
+  // }
 
 
   async login(userMetaData, email, password) {
@@ -104,6 +177,7 @@ class SecurityService {
       return messageResponse(success);
 
     } catch (error) {
+      console.log(error)
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'failed'));
     }
   }
@@ -113,38 +187,42 @@ class SecurityService {
   async resetPassword(dto) {
     const messageKey = 'resetPassword';
     const invalidToken = new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
-    const tokenDto = await this.userService.findResetPasswordTokenForUser(
-      { token: dto.token });
+
+    const tokenDto = await PasswordResetTokenModel.findOne({ token: dto.token });
     if (!tokenDto) {
-      throw invalidToken;
+      throw invalidToken
     }
-    const user = await this.userService.findUserById(tokenDto.userId);
+
+    const user = await PasswordResetTokenModel.findOne({ user_id: tokenDto.user_id });
     if (!user) {
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidUser'));
     }
-    if (!SecurityService.canResetPassword(user)) {
+
+    if (tokenDto.is_used) {
       throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'notAllowed'));
     }
 
-    const validTill = tokenDto.createdOn.clone()
-      .add(tokenDto.validitySecs, 'second');
-
-    if (validTill.isBefore()) {
-      throw invalidToken;
+    const currentTime = new Date();
+    if (currentTime > tokenDto.expiration_time) {
+      throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'tokenExpired'));
     }
 
     const hash = await new Password(dto.newPassword).hashPassword();
+
+    const idOfUser = parseInt(tokenDto.user_id);
+
     await this.userService.changeUserPassword({
-      userId: user.id,
+      user_id: tokenDto.user_id,
       password: hash,
-      updatedBy: user.id,
+      updatedBy: idOfUser,
     });
-    await this.userService.removeResetPasswordTokenForUser({
-      userId: tokenDto.userId, token: tokenDto.token
-    });
+
+    tokenDto.is_used = true;
+    await tokenDto.save();
 
     return messageResponse(formatSuccessResponse(messageKey, 'resetSucccessfully'));
   }
+
 
 
   static async createToken(ipAddress, identifier, aud) {
@@ -166,6 +244,7 @@ class SecurityService {
       delete payload.exp;
       delete payload.exp2;
     }
+
 
     return jwt.sign(payload, config.authTokens.privateKey,
       { algorithm: config.authTokens.algorithm }
