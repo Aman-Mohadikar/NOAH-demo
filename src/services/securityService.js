@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import { Password } from '../models';
 import MessageService from './messageService';
 import {
-  TokenValidationResult, Right, Role
+  TokenValidationResult, Right, Role, Authentication
 } from '../auth';
 import {
   HttpException, encrypt, decrypt,
@@ -37,44 +37,17 @@ class SecurityService {
     this.userService = Container.get(UserService);
   }
 
+
   // async login(userMetaData, email, password) {
   //   const { ipAddress } = userMetaData;
   //   const messageKey = 'login';
   //   const invalidLoginErr = new HttpException.Forbidden(formatErrorResponse(messageKey, 'invalidCredentials'));
 
-  //   // const user = await userModel.findOne({ email: email }).populate('roleId');
-  //   const user = await this.userService.findUserByEmail(email);
+  //   const user = await userModel.findOne({ email: email });
   //   console.log("user", user)
   //   let userLoginDetails = await userLoginDetailsModel.findOne({ userId: user?._id });
 
-
   //   if (SecurityService.accountBlocked(userLoginDetails)) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'accountBlocked'));
-
-  //   // const userRoles = user.roles.map(obj => obj.roleName);
-  //   // console.log("userRoles", user.roles)
-  //   const userRoles = user.roles.map(obj => obj.roleId.roleName);
-  //   console.log("userRoles", userRoles);
-
-  //   const isSuperAdmin = userRoles.includes(Role.roleValues.ADMIN_PANEL);
-  //   console.log("isSuperAdmin", isSuperAdmin)
-  //   if (!isSuperAdmin) {
-  //     throw invalidLoginErr;
-  //   }
-
-  //   // const roleIds = [];
-  //   // user.roles.map(obj => {
-  //   //   const roleId = new Role(obj.role).getId();
-  //   //   roleIds.push(roleId);
-  //   // });
-
-  //   const roleIds = user.roles.map(obj => obj.roleId.role);
-  //   // const newRole = parseInt(roleIds)
-  //   console.log("roleIds", roleIds);
-
-
-  //   const largestRole = Math.min(...roleIds);
-
-  //   // console.log("largestRole", largestRole)
 
   //   if (!user || user.status !== 'ACTIVE' || !bcrypt.compareSync(password, user.password)) {
   //     if (userLoginDetails) {
@@ -102,7 +75,25 @@ class SecurityService {
   //   }
 
   //   if (await this.canLogin(user)) {
-  //     const token = await SecurityService.createToken(ipAddress, user.id, config.authTokens.audience.app, largestRole);
+  //     // Construct roleMap
+  //     const roleMap = {
+  //       ADMIN_PANEL: 1,
+  //       TECH_MANAGER_PANEL: 2,
+  //       HR_PANEL: 3
+  //     };
+
+  //     // Use the roleMap to assign roleId in the token
+  //     const roleId = roleMap[user.roleId]; // Replace 'user.role' with the actual field from the user object
+  //     console.log("roleId", roleId)
+
+  //     // Create a token with roleId
+  //     const token = await SecurityService.createToken(ipAddress, user.id, config.authTokens.audience.app, roleId);
+
+  //     // Sending mappedRoles to the Frontend team
+  //     const mappedRoles = Object.keys(roleMap);
+  //     console.log("mappedRoles", mappedRoles)
+  //     // FrontendTeam.send(mappedRoles);
+
   //     return { token };
   //   }
   //   throw invalidLoginErr;
@@ -154,49 +145,6 @@ class SecurityService {
     throw invalidLoginErr;
   }
 
-
-
-  // async login(userMetaData, email, password) {
-  //   const { ipAddress } = userMetaData;
-  //   const messageKey = 'login';
-  //   const invalidLoginErr = new HttpException.Forbidden(formatErrorResponse(messageKey, 'invalidCredentials'));
-
-  //   const user = await userModel.findOne({ email: email });
-  //   let userLoginDetails = await userLoginDetailsModel.findOne({ userId: user?._id });
-
-  //   if (SecurityService.accountBlocked(userLoginDetails)) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'accountBlocked'));
-
-  //   if (!user || user.status !== 'ACTIVE' || !bcrypt.compareSync(password, user.password)) {
-  //     if (userLoginDetails) {
-  //       userLoginDetails.last_wrong_login_attempt = new Date();
-  //       userLoginDetails.wrong_login_count += 1;
-  //       await userLoginDetails.save();
-  //     }
-  //     throw invalidLoginErr;
-  //   }
-
-  //   if (userLoginDetails) {
-  //     userLoginDetails.last_wrong_login_attempt = null;
-  //     userLoginDetails.wrong_login_count = 0;
-  //     userLoginDetails.last_login = new Date();
-  //     userLoginDetails.last_login_ip = ipAddress;
-  //     await userLoginDetails.save();
-  //   } else {
-  //     userLoginDetails = new userLoginDetailsModel({
-  //       userId: user._id,
-  //       last_login: new Date(),
-  //       last_login_ip: ipAddress,
-  //       wrong_login_count: 0
-  //     });
-  //     await userLoginDetails.save();
-  //   }
-
-  //   if (await this.canLogin(user)) {
-  //     const token = await SecurityService.createToken(ipAddress, user.id, config.authTokens.audience.app);
-  //     return { token };
-  //   }
-  //   throw invalidLoginErr;
-  // }
 
 
   async requestResetPasswordLink(dto) {
@@ -270,7 +218,7 @@ class SecurityService {
 
 
 
-  static async createToken(ipAddress, identifier, aud, roleIds) {
+  static async createToken(ipAddress, identifier, aud, roleId) {
     const payload = {
       exp: SecurityService.anyIpAddressExpiryTimestamp(),
       iat: SecurityService.currentTimestamp(),
@@ -289,8 +237,8 @@ class SecurityService {
       delete payload.exp;
       delete payload.exp2;
     }
-    if (roleIds) {
-      payload.type = roleIds
+    if (roleId) {
+      payload.type = roleId
     }
 
 
@@ -305,7 +253,9 @@ class SecurityService {
     if (user.status !== STATUS.ACTIVE) {
       throw new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser'));
     }
+    // console.log("user", user)
     return true;
+    // return Authentication.hasRight(user, Right.general.LOGIN);
   }
 
   static canResetPassword(user) {

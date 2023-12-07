@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
     lastName: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true, unique: true },
     password: { type: String, required: true },
-    roleId: { type: Number, ref: "Role", required: true },
+    roleId: { type: Number,  required: true },
     phone: { type: Number, required: true, trim: true },
     designationId: {type: ObjectId, ref: 'Designation', required: true},
     status: { type: String, default: "ACTIVE" },

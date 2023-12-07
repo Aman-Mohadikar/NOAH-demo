@@ -35,13 +35,13 @@ class AdminService {
     async addAdmin(dto, actionUser) {
         const messageKey = 'createUser';
         const finalDto = { ...dto };
-    
+
         const RESET_TOKEN = await this.userService.createUser(finalDto, actionUser.id);
-    
+
         if (finalDto.token) {
             await MessageService.sendInvitationDetail(finalDto, RESET_TOKEN); // Pass RESET_TOKEN to sendInvitationDetail
         }
-    
+
         return messageResponse(formatSuccessResponse(messageKey, 'created'));
     }
 
@@ -49,13 +49,13 @@ class AdminService {
     async acceptInvitation(token) {
         const messageKey = 'acceptInvitation';
         try {
-          await this.userService.acceptEmailInvitation(token);
-          return messageResponse(formatSuccessResponse(messageKey, 'verified'));
+            await this.userService.acceptEmailInvitation(token);
+            return messageResponse(formatSuccessResponse(messageKey, 'verified'));
         } catch (err) {
-          console.log(err);
-          throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToVerify'));
+            console.log(err);
+            throw new HttpException.NotFound(formatErrorResponse(messageKey, 'unableToVerify'));
         }
-      }
+    }
 
 
     static fromAdmin(admin) {

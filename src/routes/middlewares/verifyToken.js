@@ -5,6 +5,7 @@ import config from '../../config';
 import { HttpException, formatErrorResponse, decrypt } from '../../utils';
 import { SecurityService } from '../../services';
 import { TokenValidationResult, Authentication } from '../../auth';
+import { userDetailsUpdateMap } from '../../models';
 
 /**
  * We are assuming that the JWT will come in a header with the form
@@ -58,6 +59,7 @@ const verifyToken = async (req, res, next) => {
                 return next(new HttpException.Unauthorized(formatErrorResponse(messageKey, 'inactiveUser')));
               case TokenValidationResult.tokenValidationStatus.VALID: {
                 const { user } = result;
+                console.log("user", user)
                 // user.rights = Authentication.userEffectiveRights(user); // comment this line 
                 user.tokenAud = payload.aud;
                 delete user.passwordHash;

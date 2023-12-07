@@ -18,6 +18,7 @@ class Right {
     PING: 'PING',
     LOGIN: 'LOGIN',
     RESET_PASSWORD: 'RESET_PASSWORD'
+
   });
 
   static user = Object.freeze({

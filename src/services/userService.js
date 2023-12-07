@@ -2,8 +2,7 @@ import { Container } from 'typedi';
 import { UserDao } from '../dao';
 import { HttpException, formatErrorResponse } from '../utils';
 import { Password } from '../models';
-import { userModel, roleModel, userInvitationModel, email_verification } from '../schemas';
-import mongoose from 'mongoose';
+import { userInvitationModel } from '../schemas';
 import crypto from "crypto";
 
 class UserService {
@@ -21,46 +20,83 @@ class UserService {
       const expirationTime = new Date();
       expirationTime.setTime(expirationTime.getTime() + EXPIRATION_TIME_MINUTES * 60 * 1000);
 
-      const tokenDocument = await userInvitationModel.create({ email: dto.email, token: RESET_TOKEN, expiration_time: expirationTime });
+      if (! await this.dao.findRoleById(dto.roleId)) {
+        throw new HttpException.NotFound(formatErrorResponse(messageKey, 'roleNotFound'));
+      }
 
-      const user = { email: dto.email, token: tokenDocument.token };
+      await this.dao.tokenDocument(dto, RESET_TOKEN, expirationTime);
+      const user = { email: dto.email, token: RESET_TOKEN };
       return user;
     } catch (err) {
+      console.log(err)
       throw new HttpException.ServerError(formatErrorResponse(messageKey, 'unableToSend'));
     }
   }
 
 
+  // async createUser(dto, createdBy) {
+  //   const messageKey = 'createUser';
+
+  //   if (await this.dao.findDuplicate(dto.email)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'duplicateUser'));
+  //   if (! await this.dao.findRoleById(dto.roleId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'roleNotFound'));
+  //   if (! await this.dao.findDesignationById(dto.designationId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'designationNotFound'));
+
+  //   const tokenData = await this.dao.isTokenExisting(dto.token);
+
+  //   if (!tokenData) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'tokenNotFound'));
+  //   if (tokenData.is_used !== false) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
+
+  //   const currentTime = new Date();
+  //   if (tokenData.expiration_time < currentTime) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'tokenExpired'));
+
+  //   try {
+  //     const createUserDto = await UserService.createUserDto(dto, createdBy);
+  //     const user = await this.dao.createUser(createUserDto)
+  //     await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true })
+
+  //     const RESET_TOKEN = await this.generateRandomToken();
+
+  //     await this.dao.sendVerificationEmail(user._id, RESET_TOKEN)
+
+  //     return RESET_TOKEN;
+  //   } catch (err) {
+  //     console.log(err)
+  //     throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
+  //   }
+  // }
+
+
   async createUser(dto, createdBy) {
     const messageKey = 'createUser';
 
-    if (await this.dao.findDuplicate(dto.email)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'duplicateUser'));
-    if (! await this.dao.findRoleById(dto.roleId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'roleNotFound'));
-    if (! await this.dao.findDesignationById(dto.designationId)) throw new HttpException.Conflict(formatErrorResponse(messageKey, 'designationNotFound'));
+    const invitationData = await this.dao.getInvitationData(dto.token);
 
-    const tokenData = await this.dao.isTokenExisting(dto.token);
-
-    if (!tokenData) throw new HttpException.NotFound(formatErrorResponse(messageKey, 'tokenNotFound'));
-    if (tokenData.is_used !== false) throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'invalidToken'));
-
-    const currentTime = new Date();
-    if (tokenData.expiration_time < currentTime) throw new HttpException.Forbidden(formatErrorResponse(messageKey, 'tokenExpired'));
+    if (!invitationData) {
+      throw new HttpException.NotFound(formatErrorResponse(messageKey, 'invitationNotFound'));
+    }
 
     try {
+      dto.email = invitationData.email;
+      dto.roleId = invitationData.roleId;
+
+      if (!await this.dao.findDesignationById(dto.designationId)) {
+        throw new HttpException.Conflict(formatErrorResponse(messageKey, 'designationNotFound'));
+      }
+
       const createUserDto = await UserService.createUserDto(dto, createdBy);
-      const user = await this.dao.createUser(createUserDto)
-      await userInvitationModel.updateOne({ _id: tokenData._id }, { is_used: true })
+      const user = await this.dao.createUser(createUserDto);
+      await userInvitationModel.deleteOne({ _id: invitationData._id });
 
       const RESET_TOKEN = await this.generateRandomToken();
-
-      await this.dao.sendVerificationEmail(user._id, RESET_TOKEN)
+      await this.dao.sendVerificationEmail(user._id, RESET_TOKEN);
 
       return RESET_TOKEN;
     } catch (err) {
-      console.log(err)
-      throw new HttpException.BadRequest(formatErrorResponse(messageKey, 'unableToCreate'));
+      console.log(err);
+      throw new HttpException.ServerError(formatErrorResponse(messageKey, 'unableToCreate'));
     }
   }
+
 
 
   async acceptEmailInvitation(dto) {
@@ -106,11 +142,11 @@ class UserService {
     return this.dao.findUserById(dto);
   }
 
-  async changeUserPassword(dto){
+  async changeUserPassword(dto) {
     return this.dao.changeUserPassword(dto);
   }
 
-  async findUserByEmail(dto){
+  async findUserByEmail(dto) {
     return this.dao.getUserByEmail(dto);
   }
 
@@ -127,7 +163,7 @@ class UserService {
       email: dto.email,
       password: hash,
       roleId: dto.roleId,
-      createdBy,
+      createdBy: createdBy,
     };
   }
 
